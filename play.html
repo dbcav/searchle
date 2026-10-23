@@ -1,0 +1,224 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Find the peak: play</title>
+  <meta name="description"
+    content="A search game: you and five multi-agent search algorithms hunt for the highest point of the same hidden landscape, a few points per turn.">
+  <meta name="author" content="David Cavender">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="Find the peak">
+  <meta property="og:description"
+    content="Place a few points per turn to find the top of a hidden landscape, against Bayesian optimization, a particle swarm and three other search algorithms.">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap"
+    rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <style>
+    /* play.html: just the game. Everything else comes from style.css. */
+    .lite .masthead {
+      padding-bottom: 6px;
+    }
+
+    .lite .mast-top {
+      padding-bottom: 12px;
+    }
+
+    @media (min-width: 981px) {
+      .lite .mast-top {
+        align-items: center;
+      }
+    }
+
+    .lite .masthead h1 {
+      font-size: clamp(34px, 4.2vw, 52px);
+    }
+
+    .lite .byline {
+      margin-top: 6px;
+    }
+
+    .lite .sheet {
+      padding-top: 14px;
+      padding-bottom: 28px;
+    }
+
+    .lite .sheet-head {
+      margin-bottom: 14px;
+    }
+
+    .lite #opponents .sheet-head h2 {
+      font-size: clamp(24px, 2.8vw, 32px);
+      margin-bottom: 6px;
+    }
+
+    .lite .colophon {
+      border-top: 0;
+    }
+  </style>
+</head>
+
+<body class="lite">
+  <header class="masthead">
+    <div class="mast-top">
+      <div class="mast-id">
+        <h1>Find the peak</h1>
+        <p class="byline">Find the highest point of a hidden landscape in a few turns, against five search algorithms
+          with the same budget.</p>
+      </div>
+      <nav class="contact" aria-label="More">
+
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <section class="sheet" id="play" aria-labelledby="play-title">
+      <div class="sheet-head">
+        <h2 id="play-title" class="visually-hidden">Your search</h2>
+        <p id="status" class="status" aria-live="polite">Loading…</p>
+      </div>
+
+      <div class="sheet-body">
+        <figure class="plate">
+          <div class="canvas-wrap" id="board-wrap">
+            <canvas id="board" tabindex="0"
+              aria-label="Your board. Click to place a point; click a placed point to remove it."></canvas>
+            <div class="board-tip" id="board-tip" hidden></div>
+          </div>
+          <div class="plate-bar">
+            <button class="btn btn-primary" id="go" type="button" disabled>Search</button>
+            <button class="btn" id="fill" type="button">Place the rest at random</button>
+            <button class="btn" id="clear" type="button">Clear</button>
+            <dl class="readouts">
+              <div>
+                <dt>Turn</dt>
+                <dd id="ro-turn">1 / 6</dd>
+              </div>
+              <div>
+                <dt>Placed</dt>
+                <dd id="ro-placed">0 / 5</dd>
+              </div>
+              <div>
+                <dt>Your best</dt>
+                <dd id="ro-best">–</dd>
+              </div>
+            </dl>
+          </div>
+          <p class="hint" id="hint">Click to place a point, click it again to take it back. Each cell is shaded by the
+            height of
+            the point inside it: this is your nearest-neighbour guess at the landscape, drawn as a Voronoi diagram.</p>
+        </figure>
+
+        <aside class="titleblock" aria-label="Standings and settings">
+          <div class="tb-cell tb-wide">
+            <h3 class="tb-title">Standings</h3>
+            <table class="standings" id="standings">
+              <thead>
+                <tr>
+                  <th scope="col">#</th>
+                  <th scope="col">Player</th>
+                  <th scope="col">Best</th>
+                  <th scope="col">Last turn</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+          <div class="tb-grid">
+            <div class="tb-cell tb-wide">
+              <label for="family">Landscape type <output id="family-note"></output></label>
+              <select id="family"></select>
+            </div>
+            <fieldset class="tb-cell tb-wide">
+              <legend>Each search reveals</legend>
+              <div class="segmented" id="seg-reveal">
+                <input type="radio" name="reveal" id="m-point" value="point"><label for="m-point">A point</label>
+                <input type="radio" name="reveal" id="m-circle" value="circle"><label for="m-circle">A circle
+                  (sonar)</label>
+              </div>
+            </fieldset>
+            <fieldset class="tb-cell tb-wide">
+              <legend>Difficulty</legend>
+              <div class="segmented" id="seg-difficulty">
+                <input type="radio" name="difficulty" id="d-easy" value="easy"><label for="d-easy">Easy</label>
+                <input type="radio" name="difficulty" id="d-medium" value="medium"><label for="d-medium">Medium</label>
+                <input type="radio" name="difficulty" id="d-hard" value="hard"><label for="d-hard">Hard</label>
+              </div>
+            </fieldset>
+            <fieldset class="tb-cell">
+              <legend>Points per turn</legend>
+              <div class="segmented compact" id="seg-batch">
+                <input type="radio" name="batch" id="b-3" value="3"><label for="b-3">3</label>
+                <input type="radio" name="batch" id="b-5" value="5"><label for="b-5">5</label>
+                <input type="radio" name="batch" id="b-8" value="8"><label for="b-8">8</label>
+              </div>
+            </fieldset>
+            <fieldset class="tb-cell">
+              <legend>Turns</legend>
+              <div class="segmented compact" id="seg-rounds">
+                <input type="radio" name="rounds" id="r-4" value="4"><label for="r-4">4</label>
+                <input type="radio" name="rounds" id="r-6" value="6"><label for="r-6">6</label>
+                <input type="radio" name="rounds" id="r-10" value="10"><label for="r-10">10</label>
+              </div>
+            </fieldset>
+            <div class="tb-cell tb-wide">
+              <div class="check-row"><input type="checkbox" id="shade" checked><label for="shade">Shade my Voronoi
+                  cells</label></div>
+              <div class="check-row"><input type="checkbox" id="peek"><label for="peek">Show the opponents' points while
+                  I play (spoilers)</label></div>
+            </div>
+            <div class="tb-cell tb-wide tb-buttons">
+              <button class="btn" id="new" type="button">New landscape</button>
+              <button class="btn" id="daily" type="button">Today's landscape</button>
+              <button class="btn" id="restart" type="button">Restart</button>
+              <button class="btn" id="share" type="button">Copy link</button>
+            </div>
+          </div>
+          <div class="tb-foot">
+            <span id="seed-label">Seed</span>
+            <span id="share-msg" aria-live="polite"></span>
+          </div>
+        </aside>
+      </div>
+    </section>
+
+    <section class="sheet" id="opponents" aria-labelledby="opp-title">
+      <div class="sheet-head">
+        <h2 id="opp-title">The opponents</h2>
+        <p>They search the same landscape and never see your points. Their boards are covered until the end.</p>
+      </div>
+      <div class="opp-grid" id="opp-grid"></div>
+      <div class="replay-bar" id="replay-bar">
+        <label for="replay">Show turns 1 to <output id="replay-out">6</output></label>
+        <input type="range" id="replay" min="1" max="6" value="6" step="1" disabled>
+        <span class="key" aria-hidden="true"><span>0</span><span class="key-ramp"
+            id="key-ramp"></span><span>100</span></span>
+        <span class="key-label">height</span>
+      </div>
+    </section>
+
+  </main>
+
+  <footer class="colophon">
+    <p>Hi sue
+    </p>
+  </footer>
+
+  <script src="js/rng.js"></script>
+  <script src="js/voronoi.js"></script>
+  <script src="js/colors.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/landscape.js"></script>
+  <script src="js/gp.js"></script>
+  <script src="js/searchers.js"></script>
+  <script src="js/game.js"></script>
+  <script src="js/view.js"></script>
+</body>
+
+</html>
