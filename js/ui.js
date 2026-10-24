@@ -14,6 +14,7 @@
       this.ctx = canvas.getContext("2d");
       this.onResize = onResize;
       this.size = 1;
+      this.z = 1; this.ox = 0; this.oy = 0; // view: zoom, and the world point at the canvas's top-left
       this.resize();
       new ResizeObserver(() => { this.resize(); if (this.onResize) this.onResize(); }).observe(canvas.parentElement);
     }
@@ -26,13 +27,33 @@
       this.canvas.height = Math.round(s * dpr);
       this.canvas.style.width = s + "px";
       this.canvas.style.height = s + "px";
-      this.ctx.setTransform(dpr * s, 0, 0, dpr * s, 0, 0); // draw in world units
+      this.applyView(); // draw in world units
     }
-    /** pixels per world unit (CSS px) */
-    get k() { return this.size; }
+    /** device-pixel transform for world units under the current zoom/pan */
+    matrix() {
+      const m = this.dpr * this.size * this.z;
+      return [m, 0, 0, m, -m * this.ox, -m * this.oy];
+    }
+    applyView() { this.ctx.setTransform(...this.matrix()); }
+    /** zoom z >= 1 with the visible window [ox, ox + 1/z] kept inside the board */
+    setView(z, ox, oy) {
+      z = Math.min(Stage.MAX_ZOOM, Math.max(1, z));
+      const hi = 1 - 1 / z, cl = (v) => Math.min(hi, Math.max(0, v));
+      this.z = z; this.ox = cl(ox); this.oy = cl(oy);
+      if (z < 1.01) { this.z = 1; this.ox = 0; this.oy = 0; }
+      this.applyView();
+    }
+    resetView() { this.setView(1, 0, 0); }
+    get zoomed() { return this.z > 1; }
+    viewKey() { return this.z.toFixed(4) + "," + this.ox.toFixed(5) + "," + this.oy.toFixed(5); }
+    /** pixels per world unit (CSS px), including zoom */
+    get k() { return this.size * this.z; }
+    /** world -> CSS px inside the canvas */
+    sx(x) { return (x - this.ox) * this.k; }
+    sy(y) { return (y - this.oy) * this.k; }
     toWorld(e) {
       const r = this.canvas.getBoundingClientRect();
-      return { x: (e.clientX - r.left) / r.width, y: (e.clientY - r.top) / r.height };
+      return { x: this.ox + (e.clientX - r.left) / r.width / this.z, y: this.oy + (e.clientY - r.top) / r.height / this.z };
     }
     clear(color) {
       const c = this.ctx;
@@ -41,7 +62,92 @@
       c.restore();
     }
   }
+  Stage.MAX_ZOOM = 6;
   VC.Stage = Stage;
+
+  /**
+   * Pinch-to-zoom and pan for a board, plus taps.
+   * Two fingers zoom and pan; one finger pans while zoomed in; ctrl+wheel (and
+   * trackpad pinch) zooms on desktop. A tap or click that didn't move and wasn't
+   * part of a pinch calls onTap(e). onView() runs after the view changes.
+   * A "Reset view" button appears over the board while zoomed in.
+   */
+  VC.attachZoom = function (stage, { onTap, onView }) {
+    const cv = stage.canvas, ptrs = new Map(), SLOP = 10;
+    let multi = false, moved = false, pinch = null, pan = null;
+    const changed = () => { btn.hidden = !stage.zoomed; if (onView) onView(); };
+
+    const btn = document.createElement("button");
+    btn.type = "button"; btn.className = "view-reset"; btn.textContent = "Reset view"; btn.hidden = true;
+    btn.addEventListener("click", () => { stage.resetView(); changed(); cv.focus({ preventScroll: true }); });
+    cv.parentElement.appendChild(btn);
+
+    const mid = () => { const [a, b] = [...ptrs.values()]; return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2, d: Math.hypot(a.x - b.x, a.y - b.y) || 1 }; };
+    const startPinch = () => {
+      const m = mid(), r = cv.getBoundingClientRect();
+      pinch = { m, r, z: stage.z, wx: stage.ox + (m.x - r.left) / r.width / stage.z, wy: stage.oy + (m.y - r.top) / r.height / stage.z };
+      pan = null;
+    };
+    const startPan = (p) => { pan = { x: p.x, y: p.y, ox: stage.ox, oy: stage.oy, r: cv.getBoundingClientRect() }; };
+
+    cv.addEventListener("pointerdown", (e) => {
+      if (e.pointerType === "mouse" && e.button !== 0) return;
+      try { cv.setPointerCapture(e.pointerId); } catch (_) { /* not capturable */ }
+      ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY, x0: e.clientX, y0: e.clientY });
+      if (ptrs.size === 1) { multi = false; moved = false; startPan(ptrs.get(e.pointerId)); }
+      else { multi = true; if (ptrs.size === 2) startPinch(); }
+    });
+    cv.addEventListener("pointermove", (e) => {
+      const p = ptrs.get(e.pointerId);
+      if (!p) return;
+      p.x = e.clientX; p.y = e.clientY;
+      if (Math.hypot(p.x - p.x0, p.y - p.y0) > SLOP) moved = true;
+      if (pinch && ptrs.size >= 2) {
+        const m = mid(), z = Math.min(VC.Stage.MAX_ZOOM, Math.max(1, pinch.z * m.d / pinch.m.d));
+        stage.setView(z, pinch.wx - (m.x - pinch.r.left) / pinch.r.width / z, pinch.wy - (m.y - pinch.r.top) / pinch.r.height / z);
+        changed();
+      } else if (pan && moved && stage.zoomed) {
+        stage.setView(stage.z, pan.ox - (p.x - pan.x) / pan.r.width / stage.z, pan.oy - (p.y - pan.y) / pan.r.height / stage.z);
+        changed();
+      }
+    });
+    const up = (e, tap) => {
+      if (!ptrs.has(e.pointerId)) return;
+      ptrs.delete(e.pointerId);
+      if (tap && !multi && !moved && ptrs.size === 0 && onTap) onTap(e);
+      if (ptrs.size === 1) { pinch = null; startPan([...ptrs.values()][0]); } // keep panning with the finger left down
+      else if (ptrs.size === 2) startPinch();
+      else if (!ptrs.size) { pinch = null; pan = null; }
+    };
+    cv.addEventListener("pointerup", (e) => up(e, true));
+    cv.addEventListener("pointercancel", (e) => up(e, false));
+
+    // desktop: ctrl+wheel / trackpad pinch zooms around the cursor; plain wheel scrolls the page
+    cv.addEventListener("wheel", (e) => {
+      if (!e.ctrlKey && !stage.zoomed) return;
+      if (!e.ctrlKey) { // zoomed in: the wheel pans
+        e.preventDefault();
+        stage.setView(stage.z, stage.ox + e.deltaX / stage.k, stage.oy + e.deltaY / stage.k);
+        return changed();
+      }
+      e.preventDefault();
+      const r = cv.getBoundingClientRect(), z = stage.z * Math.exp(-e.deltaY * 0.01);
+      const wx = stage.ox + (e.clientX - r.left) / r.width / stage.z, wy = stage.oy + (e.clientY - r.top) / r.height / stage.z;
+      stage.setView(z, wx - (e.clientX - r.left) / r.width / Math.min(VC.Stage.MAX_ZOOM, Math.max(1, z)),
+        wy - (e.clientY - r.top) / r.height / Math.min(VC.Stage.MAX_ZOOM, Math.max(1, z)));
+      changed();
+    }, { passive: false });
+    // keyboard: + / - zoom about the centre, 0 resets
+    cv.addEventListener("keydown", (e) => {
+      const f = e.key === "+" || e.key === "=" ? 1.5 : e.key === "-" ? 1 / 1.5 : e.key === "0" ? 0 : null;
+      if (f == null) return;
+      e.preventDefault();
+      if (!f) stage.resetView();
+      else { const c = 0.5 / stage.z, cx = stage.ox + c, cy = stage.oy + c, z = Math.min(VC.Stage.MAX_ZOOM, Math.max(1, stage.z * f)); stage.setView(z, cx - 0.5 / z, cy - 0.5 / z); }
+      changed();
+    });
+    return { reset() { stage.resetView(); changed(); } };
+  };
 
   /**
    * Draggable circles. handles: [{ id, get(): {x,y,R}, resizable, onMove(x,y,R,phase) }]

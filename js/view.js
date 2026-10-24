@@ -87,7 +87,7 @@
     ctx.setTransform(stage.dpr, 0, 0, stage.dpr, 0, 0);
     ctx.font = `${o.weight || 600} ${o.size || 13}px ${FONT}`;
     ctx.textAlign = o.align || "left"; ctx.textBaseline = o.baseline || "middle";
-    const px = x * k + (o.dx || 0), py = y * k + (o.dy || 0);
+    const px = stage.sx(x) + (o.dx || 0), py = stage.sy(y) + (o.dy || 0);
     if (o.halo !== false) { ctx.lineJoin = "round"; ctx.lineWidth = 3; ctx.strokeStyle = o.haloColor || C.paper; ctx.strokeText(str, px, py); }
     ctx.fillStyle = o.color || C.ink; ctx.fillText(str, px, py);
     ctx.restore();
@@ -289,20 +289,22 @@
       if ($("reset-record")) $("reset-record").addEventListener("click", () => { this.record = { games: 0, vs: {} }; saveRecord(this.record); this.renderRecord(); });
 
       const cv = $("board");
-      cv.addEventListener("pointerdown", (e) => {
+      this.zoom = VC.attachZoom(this.board, { onTap: (e) => this.tap(e), onView: () => { $("board-tip").hidden = true; this.draw(); } });
+      this.tap = (e) => {
         if (!this.game || this.game.over || this.busy) return;
         const p = this.board.toWorld(e), tol = 12 / this.board.k;
         const hit = this.pending.findIndex((q) => Math.hypot(q.x - p.x, q.y - p.y) < tol);
         if (hit >= 0) this.pending.splice(hit, 1);
         else if (this.pending.length < this.o.batch) this.pending.push({ x: VC.clamp01(p.x), y: VC.clamp01(p.y) });
         this.update();
-      });
+      };
       cv.addEventListener("pointermove", (e) => this.hover(e));
       cv.addEventListener("pointerleave", () => { $("board-tip").hidden = true; });
       cv.addEventListener("keydown", (e) => { if (e.key === "Enter" && !$("go").disabled) { e.preventDefault(); this.submit(); } });
     }
 
     newGame() {
+      if (this.zoom) this.zoom.reset();
       this.game = new VC.Game(this.o);
       this.pending = [];
       this.busy = false;
@@ -377,7 +379,6 @@
       this.renderStandings();
       this.renderChart();
       this.renderRecord();
-      for (const S of VC.SEARCHERS) this.opp[S.id].best.textContent = fmt(g.player(S.id).best);
       const top = over ? Math.max(...g.players.map((p) => p.best)) : null;
       for (const S of VC.SEARCHERS) this.opp[S.id].fig.classList.toggle("winner", over && Math.abs(g.player(S.id).best - top) < 0.05);
       this.draw();
@@ -516,6 +517,7 @@
 
     drawOpp(id) {
       const g = this.game; if (!g) return;
+      this.opp[id].best.textContent = fmt(g.bestUpTo(g.player(id), this.upto()));  // follows the replay slider
       const peek = $("peek").checked;
       drawBoard(this.opp[id].stage, {
         pts: g.player(id).pts, upto: this.upto(), hidden: !g.over && !peek,

@@ -465,3 +465,14 @@ html.is-zoomed .canvas-wrap canvas { touch-action: manipulation; }
   cursor: pointer;
 }
 .zoom-reset[hidden] { display: none; }
+
+/* board zoom (js/ui.js VC.attachZoom) */
+.view-reset {
+  position: absolute; top: 8px; right: 8px; z-index: 2;
+  padding: 6px 10px;
+  font: 600 15px/1 var(--display); letter-spacing: 0.02em;
+  color: var(--paper); background: var(--ink);
+  border: 1.5px solid var(--ink); border-radius: 2px;
+  cursor: pointer;
+}
+.view-reset[hidden] { display: none; }
