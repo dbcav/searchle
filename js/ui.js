@@ -68,13 +68,14 @@
   /**
    * Pinch-to-zoom and pan for a board, plus taps.
    * Two fingers zoom and pan; one finger pans while zoomed in; ctrl+wheel (and
-   * trackpad pinch) zooms on desktop. A tap or click that didn't move and wasn't
-   * part of a pinch calls onTap(e). onView() runs after the view changes.
+   * trackpad pinch) zooms on desktop. A tap or click that wasn't part of a pinch
+   * (and, when zoomed in, wasn't a drag to pan) calls onTap at the spot where it
+   * was pressed. onView() runs after the view changes.
    * A "Reset view" button appears over the board while zoomed in.
    */
   VC.attachZoom = function (stage, { onTap, onView }) {
     const cv = stage.canvas, ptrs = new Map(), SLOP = 10;
-    let multi = false, moved = false, pinch = null, pan = null;
+    let multi = false, moved = false, panned = false, pinch = null, pan = null, down = null;
     const changed = () => { btn.hidden = !stage.zoomed; if (onView) onView(); };
 
     const btn = document.createElement("button");
@@ -94,7 +95,7 @@
       if (e.pointerType === "mouse" && e.button !== 0) return;
       try { cv.setPointerCapture(e.pointerId); } catch (_) { /* not capturable */ }
       ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY, x0: e.clientX, y0: e.clientY });
-      if (ptrs.size === 1) { multi = false; moved = false; startPan(ptrs.get(e.pointerId)); }
+      if (ptrs.size === 1) { multi = false; moved = false; panned = false; down = { clientX: e.clientX, clientY: e.clientY, pointerType: e.pointerType }; startPan(ptrs.get(e.pointerId)); }
       else { multi = true; if (ptrs.size === 2) startPinch(); }
     });
     cv.addEventListener("pointermove", (e) => {
@@ -107,6 +108,7 @@
         stage.setView(z, pinch.wx - (m.x - pinch.r.left) / pinch.r.width / z, pinch.wy - (m.y - pinch.r.top) / pinch.r.height / z);
         changed();
       } else if (pan && moved && stage.zoomed) {
+        panned = true;
         stage.setView(stage.z, pan.ox - (p.x - pan.x) / pan.r.width / stage.z, pan.oy - (p.y - pan.y) / pan.r.height / stage.z);
         changed();
       }
@@ -114,7 +116,7 @@
     const up = (e, tap) => {
       if (!ptrs.has(e.pointerId)) return;
       ptrs.delete(e.pointerId);
-      if (tap && !multi && !moved && ptrs.size === 0 && onTap) onTap(e);
+      if (tap && !multi && !panned && ptrs.size === 0 && onTap && down) onTap(down);
       if (ptrs.size === 1) { pinch = null; startPan([...ptrs.values()][0]); } // keep panning with the finger left down
       else if (ptrs.size === 2) startPinch();
       else if (!ptrs.size) { pinch = null; pan = null; }
