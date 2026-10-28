@@ -6,12 +6,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
   <title>Searchle v0.0001</title>
   <meta name="description"
-    content="A search game: you and five multi-agent search algorithms hunt for the highest point of the same hidden landscape, a few points per turn.">
+    content="A search game: you and six multi-agent search algorithms hunt for the highest point of the same hidden landscape, a few points per turn.">
   <meta name="author" content="David Cavender">
   <meta property="og:type" content="website">
   <meta property="og:title" content="Searchle">
   <meta property="og:description"
-    content="Place a few points per turn to find the top of a hidden landscape, against Bayesian optimization, a particle swarm and three other search algorithms.">
+    content="Place a few points per turn to find the top of a hidden landscape, against Bayesian optimization, a particle swarm and four other search algorithms.">
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -68,8 +68,8 @@
     <div class="mast-top">
       <div class="mast-id">
         <h1>Find the peak</h1>
-        <p class="byline">Find the highest point of a hidden landscape in a few turns, against five search algorithms
-          with the same budget.</p>
+        <p class="byline">Find the highest point of a hidden landscape in a few turns, against six search algorithms
+          with the same budget. Scores range between 0 and 100.</p>
       </div>
       <nav class="contact" aria-label="More">
 
@@ -206,7 +206,26 @@
   </main>
 
   <footer class="colophon">
-    <p>Hi sue
+    <p>
+      "Why would anyone care about doing this?" Imagine you own a lab with 6 chambers in which experiments can be run
+      simultaneously (which is exactly what you're doing each turn here). You want to find the optimal settings for the
+      chamber to produce some desired output,
+      but each chamber run takes a full 24 hours. These algorithms exist to help make decisions about what collection of
+      inputs to try next given the experiments you've already tried.
+    </p>
+    <br>
+    <p>
+      "Why is it so easy to beat them by just guessing?" The problems on this page are small. These are equivalent to
+      running an experiment or a simulation with only 2 inputs. Industrial processes
+      or scientific simulations often have dozens (or hundreds, or thousands...) of inputs. In 2-D, it's not so hard for
+      us to just look at the box and click, but in, say, 24-D there's no box to look at, and the space is so vast
+      that guessing well becomes hopeless. The search domains on this page are also pretty "nice": the outputs (mostly)
+      don't oscillate wildly. Finally, six points per batch isn't a particularly large number. If instead we were
+      placing
+      100 points per batch, it would take a lot of effort for a human to place them well. Scattering them evenly is
+      easy, but deciding how many to spend exploring new regions versus refining around the best results so far, without
+      wasting
+      any on redundant guesses, is exactly the kind of bookkeeping these algorithms are built to do.
     </p>
   </footer>
 
@@ -217,6 +236,7 @@
   <script src="js/landscape.js"></script>
   <script src="js/gp.js"></script>
   <script src="js/searchers.js"></script>
+  <script src="js/splitstep.js"></script>
   <script src="js/game.js"></script>
   <script src="js/view.js"></script>
   <script src="js/zoomguard.js"></script>

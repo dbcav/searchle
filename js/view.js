@@ -1,5 +1,5 @@
 /*
- * The page: your board, the five opponent boards, standings, chart, record.
+ * The page: your board, the opponent boards (one per entry in VC.SEARCHERS), standings, chart, record.
  * Drawing is on demand (no animation loop): something changed -> redraw.
  */
 (function (global) {
@@ -23,7 +23,7 @@
   const PAPER_RGB = [0xee, 0xf1, 0xec];
   const heightColor = (v) => VC.ramp(v / 100);
   function playerColor(id) {
-    const slot = { you: "--you", gp: "--s1", voronoi: "--s2", swarm: "--s3", climbers: "--s4", random: "--s5" }[id];
+    const slot = { you: "--you", gp: "--s1", voronoi: "--s2", swarm: "--s3", climbers: "--s4", random: "--s5", split: "--s6" }[id];
     return css(slot);
   }
 
@@ -89,7 +89,7 @@
     ctx.textAlign = o.align || "left"; ctx.textBaseline = o.baseline || "middle";
     const px = stage.sx(x) + (o.dx || 0), py = stage.sy(y) + (o.dy || 0);
     if (o.halo !== false) { ctx.lineJoin = "round"; ctx.lineWidth = 3; ctx.strokeStyle = o.haloColor || C.paper; ctx.strokeText(str, px, py); }
-    ctx.fillStyle = o.color || C.ink; ctx.fillText(str, px, py);
+    ctx.fillStyle = o.color || C.text; ctx.fillText(str, px, py);
     ctx.restore();
   }
 
@@ -113,7 +113,7 @@
       fog(ctx, k);
       const hc = css("--paper-2");
       label(stage, "Hidden until the game ends", 0.5, 0.5, { size: 16, align: "center", dy: -10, haloColor: hc });
-      label(stage, `${o.pts.length} ${o.radius ? "circles" : "points"} searched`, 0.5, 0.5, { size: 14, weight: 500, align: "center", dy: 12, color: C.ink2, haloColor: hc });
+      label(stage, `${o.pts.length} ${o.radius ? "circles" : "points"} searched`, 0.5, 0.5, { size: 14, weight: 500, align: "center", dy: 12, color: C.text, haloColor: hc });
       return;
     }
     const pts = o.pts.filter((p) => p.round < o.upto);
@@ -238,6 +238,7 @@
 
     buildOpponents() {
       const grid = $("opp-grid");
+      grid.style.setProperty("--opp-n", VC.SEARCHERS.length); // one column per opponent on wide screens
       this.opp = {};
       for (const S of VC.SEARCHERS) {
         const fig = document.createElement("figure");
@@ -454,8 +455,9 @@
       const cols = [...VC.FAMILIES, { label: "Mixes" }];
       head.innerHTML = `<tr><th scope="col">Opponent</th>${cols.map((f) => `<th scope="col">${f.label}</th>`).join("")}</tr>`;
       body.innerHTML = "";
-      const top = cols.map((_, j) => Math.max(...VC.SEARCHERS.map((S) => data[S.id][j])));
-      for (const S of VC.SEARCHERS) {
+      const listed = VC.SEARCHERS.filter((S) => data[S.id]); // an opponent without benchmark numbers is left out
+      const top = cols.map((_, j) => Math.max(...listed.map((S) => data[S.id][j])));
+      for (const S of listed) {
         const tr = document.createElement("tr"), b = data[S.id];
         tr.innerHTML = `<th scope="row"><i class="sw" style="--c:${playerColor(S.id)}"></i>${S.name}</th>${b.map((v, j) => `<td class="${v === top[j] ? "top" : ""}">${v.toFixed(1)}</td>`).join("")}`;
         body.appendChild(tr);

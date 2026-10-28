@@ -11,6 +11,7 @@
     paper: "#EEF1EC",
     ink: "#1E2A3A",
     ink2: "#4A5868",
+    text: "#000", // canvas labels, same as --text-ink
     rule: "#C3CBC4",
     grid: "#DCE1DB",
     exit: "#0F7B53",
