@@ -70,7 +70,7 @@ main { max-width: 1200px; margin: 0 auto; padding: 0 var(--gutter); }
 .plate { margin: 0; min-width: 0; border-right: var(--frame); display: flex; flex-direction: column; }
 .canvas-wrap { position: relative; aspect-ratio: 1 / 1; width: min(100%, 78vh, 780px); margin: 0 auto; }
 .plate { background: var(--paper); }
-.canvas-wrap canvas { display: block; width: 100%; height: 100%; touch-action: none; cursor: default; }
+.canvas-wrap canvas { display: block; width: 100%; height: 100%; touch-action: manipulation; cursor: default; }
 .canvas-wrap canvas:focus-visible { outline: 3px solid var(--focus); outline-offset: -3px; }
 .plate-bar {
   display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px;
@@ -446,27 +446,14 @@ code { font-size: 0.88em; }
 /* the masthead rules above come after the 980px media block, so restate its phone layout */
 @media (max-width: 980px) { .mast-top { align-items: flex-start; } }
 
-/* ── phones: keep page zoom recoverable ──────────────────────
-   The boards use touch-action:none so taps place points cleanly, which also
-   means a pinch that starts on a board never reaches Safari. So: no double-tap
-   zoom anywhere, a margin around the main board to pinch on, and while the page
-   is zoomed in (js/zoomguard.js sets html.is-zoomed) the boards let pinches through. */
+/* ── phones: page zoom always works ──────────────────────────
+   Boards (and the page) use touch-action: manipulation: a tap still places a
+   point at once with no double-tap zoom, but a pinch or a drag that starts on a
+   board always goes to the browser, so a zoomed-in page can always be pinched
+   back out, even when a board fills the screen. Never set touch-action: none on
+   a board again: iOS Safari then keeps every pinch on it, and an earlier fix that
+   switched it off while the page was zoomed didn't take effect on iPhones. */
 html, body { touch-action: manipulation; }
-html.is-zoomed .canvas-wrap canvas { touch-action: manipulation; }
-@media (max-width: 520px) {
-  .plate .canvas-wrap { width: min(100% - 40px, 70vh); margin: 14px auto; }
-  .opp .canvas-wrap { width: 100%; margin: 0; }
-}
-.zoom-reset {
-  position: absolute; z-index: 1000; left: 0; top: 0; transform-origin: 0 0;
-  padding: 9px 14px;
-  font: 600 17px/1 var(--display); letter-spacing: 0.02em;
-  color: var(--paper); background: var(--ink);
-  border: 1.5px solid var(--ink); border-radius: 2px;
-  box-shadow: 3px 3px 0 rgba(30, 42, 58, 0.25);
-  cursor: pointer;
-}
-.zoom-reset[hidden] { display: none; }
 
 /* board zoom (js/ui.js VC.attachZoom) */
 .view-reset {

@@ -66,12 +66,15 @@
   VC.Stage = Stage;
 
   /**
-   * Pinch-to-zoom and pan for a board, plus taps.
-   * Two fingers zoom and pan; one finger pans while zoomed in; ctrl+wheel (and
-   * trackpad pinch) zooms on desktop. A tap or click that wasn't part of a pinch
-   * (and, when zoomed in, wasn't a drag to pan) calls onTap at the spot where it
-   * was pressed. onView() runs after the view changes.
-   * A "Reset view" button appears over the board while zoomed in.
+   * Board zoom and pan, plus taps.
+   * Mouse and pen: ctrl+wheel (and trackpad pinch) zooms around the cursor, a
+   * drag pans while zoomed in, and + / - / 0 zoom from the keyboard.
+   * Touch: taps only. Pinches and drags that start on a board are left to the
+   * browser (the canvas has touch-action: manipulation), so they zoom or scroll
+   * the page, and a zoomed-in page can always be pinched back out.
+   * A tap or click that wasn't part of a pinch (and, when zoomed in, wasn't a
+   * drag to pan) calls onTap at the spot where it was pressed. onView() runs
+   * after the view changes. A "Reset view" button appears while zoomed in.
    */
   VC.attachZoom = function (stage, { onTap, onView }) {
     const cv = stage.canvas, ptrs = new Map(), SLOP = 10;
@@ -93,10 +96,11 @@
 
     cv.addEventListener("pointerdown", (e) => {
       if (e.pointerType === "mouse" && e.button !== 0) return;
-      try { cv.setPointerCapture(e.pointerId); } catch (_) { /* not capturable */ }
-      ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY, x0: e.clientX, y0: e.clientY });
-      if (ptrs.size === 1) { multi = false; moved = false; panned = false; down = { clientX: e.clientX, clientY: e.clientY, pointerType: e.pointerType }; startPan(ptrs.get(e.pointerId)); }
-      else { multi = true; if (ptrs.size === 2) startPinch(); }
+      const touch = e.pointerType === "touch"; // touch: watch for a tap, leave gestures to the browser
+      if (!touch) try { cv.setPointerCapture(e.pointerId); } catch (_) { /* not capturable */ }
+      ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY, x0: e.clientX, y0: e.clientY, touch });
+      if (ptrs.size === 1) { multi = false; moved = false; panned = false; down = { clientX: e.clientX, clientY: e.clientY, pointerType: e.pointerType }; if (!touch) startPan(ptrs.get(e.pointerId)); }
+      else { multi = true; if (ptrs.size === 2 && !touch) startPinch(); }
     });
     cv.addEventListener("pointermove", (e) => {
       const p = ptrs.get(e.pointerId);
@@ -117,8 +121,9 @@
       if (!ptrs.has(e.pointerId)) return;
       ptrs.delete(e.pointerId);
       if (tap && !multi && !panned && ptrs.size === 0 && onTap && down) onTap(down);
-      if (ptrs.size === 1) { pinch = null; startPan([...ptrs.values()][0]); } // keep panning with the finger left down
-      else if (ptrs.size === 2) startPinch();
+      const rest = [...ptrs.values()];
+      if (ptrs.size === 1) { pinch = null; if (!rest[0].touch) startPan(rest[0]); } // keep panning with the pointer left down
+      else if (ptrs.size === 2 && !rest.some((q) => q.touch)) startPinch();
       else if (!ptrs.size) { pinch = null; pan = null; }
     };
     cv.addEventListener("pointerup", (e) => up(e, true));
